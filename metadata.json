@@ -1,0 +1,6 @@
+{
+  "name": "AttendFlow",
+  "description": "All-in-one attendance management system with punch clock, employee directory, shift scheduling, holiday tracking, monthly reports & stats, and integrated API engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
