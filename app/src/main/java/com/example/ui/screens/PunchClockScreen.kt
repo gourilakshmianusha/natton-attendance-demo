@@ -41,12 +41,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +60,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.example.data.model.calculateStayDuration
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,6 +96,23 @@ fun PunchClockScreen(
     val isCheckedOut = myRecord?.outTime != null
 
     var showEmployeePicker by remember { mutableStateOf(false) }
+
+    var currentTimeString by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTimeString = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+            delay(1000)
+        }
+    }
+
+    val liveStayResult = if (isCheckedIn) {
+        calculateStayDuration(
+            inTimeStr = myRecord?.inTime,
+            outTimeStr = myRecord?.outTime ?: currentTimeString,
+            shiftStart = currentEmp?.shiftStart ?: "09:30",
+            breakMinutes = myRecord?.breakMinutes ?: 30
+        )
+    } else null
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -209,6 +233,134 @@ fun PunchClockScreen(
             }
         }
 
+        // Automated Sign-In & Office Stay Tracker Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("auto_punch_stay_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isCheckedIn && !isCheckedOut) Color(0xFF1C2541) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = if (isCheckedIn && !isCheckedOut) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64DFDF).copy(alpha = 0.5f)) else null
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isCheckedIn && !isCheckedOut) Icons.Default.Schedule else Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = if (isCheckedIn && !isCheckedOut) Color(0xFF64DFDF) else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (!isCheckedIn) "Auto-Punch Ready on Sign-In"
+                                else if (!isCheckedOut) "Live In-Office Stay Session"
+                                else "Office Stay Summary",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isCheckedIn && !isCheckedOut) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (isCheckedIn && !isCheckedOut) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF10B981).copy(alpha = 0.2f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "TRACKING STAY",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    if (!isCheckedIn) {
+                        Text(
+                            text = "Standard Shift: 09:30 AM - 06:00 PM (8.5 hrs). Tapping PUNCH IN will automatically log your arrival time and begin real-time office stay calculation.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (liveStayResult != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0B132B).copy(alpha = 0.8f))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Arrival (IN)", fontSize = 10.sp, color = Color(0xFF90E0EF))
+                                Text(myRecord?.inTime ?: "--:--", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Column {
+                                Text(if (!isCheckedOut) "Stay Elapsed" else "Total Stay", fontSize = 10.sp, color = Color(0xFF90E0EF))
+                                Text(liveStayResult.grossFormatted, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64DFDF))
+                            }
+                            Column {
+                                Text("Break Deduct", fontSize = 10.sp, color = Color(0xFF90E0EF))
+                                Text("30 mins", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Column {
+                                Text("Effective Work", fontSize = 10.sp, color = Color(0xFF90E0EF))
+                                Text("${liveStayResult.netHours} hrs", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        val progress = (liveStayResult.grossHours / 8.5).toFloat().coerceIn(0f, 1f)
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = if (progress >= 1f) Color(0xFF10B981) else Color(0xFF0077B6),
+                            trackColor = Color(0xFF3A506B)
+                        )
+
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${liveStayResult.complianceText} (Target: 8.5 Gross Hrs)",
+                                fontSize = 10.sp,
+                                color = if (liveStayResult.isLate) Color(0xFFF59E0B) else Color(0xFF90E0EF)
+                            )
+                            if (liveStayResult.overtimeHours > 0) {
+                                Text(
+                                    text = "Overtime: +${liveStayResult.overtimeHours} hrs",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF10B981)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Live Clock Widget
         item {
             LiveClockWidget(
@@ -277,9 +429,10 @@ fun PunchClockScreen(
                             )
                             .clickable(enabled = !isPunching && (!isCheckedOut || isCheckedIn)) {
                                 if (!isCheckedIn) {
-                                    viewModel.punch(PunchType.IN)
+                                    val empId = currentEmp?.id ?: "EMP-1001"
+                                    viewModel.employeeLoginAndAutoPunch(empId)
                                 } else if (!isCheckedOut) {
-                                    viewModel.punch(PunchType.OUT)
+                                    viewModel.employeeCheckoutAndAutoPunchOut()
                                 }
                             }
                             .testTag("main_punch_button"),

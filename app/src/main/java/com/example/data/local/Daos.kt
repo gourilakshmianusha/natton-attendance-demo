@@ -18,6 +18,9 @@ interface EmployeeDao {
     @Query("SELECT * FROM employees WHERE id = :id LIMIT 1")
     suspend fun getEmployeeByIdOnce(id: String): EmployeeEntity?
 
+    @Query("SELECT * FROM employees")
+    suspend fun getAllEmployeesOnce(): List<EmployeeEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmployee(employee: EmployeeEntity)
 
@@ -72,6 +75,9 @@ interface HolidayDao {
     @Query("SELECT * FROM holidays ORDER BY date ASC")
     fun getAllHolidays(): Flow<List<HolidayEntity>>
 
+    @Query("SELECT * FROM holidays ORDER BY date ASC")
+    suspend fun getAllHolidaysOnce(): List<HolidayEntity>
+
     @Query("SELECT * FROM holidays WHERE date LIKE :yearPrefix || '%' ORDER BY date ASC")
     fun getHolidaysForYear(yearPrefix: String): Flow<List<HolidayEntity>>
 
@@ -107,4 +113,22 @@ interface LeaveDao {
 
     @Query("SELECT COUNT(*) FROM leave_requests")
     suspend fun getLeaveCount(): Int
+}
+
+@Dao
+interface EventDao {
+    @Query("SELECT * FROM system_events ORDER BY timestamp DESC")
+    fun getAllEvents(): Flow<List<SystemEventEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvent(event: SystemEventEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllEvents(events: List<SystemEventEntity>)
+
+    @Query("DELETE FROM system_events WHERE id = :id")
+    suspend fun deleteEvent(id: String)
+
+    @Query("DELETE FROM system_events")
+    suspend fun clearAllEvents()
 }

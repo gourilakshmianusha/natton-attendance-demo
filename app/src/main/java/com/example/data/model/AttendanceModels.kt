@@ -22,8 +22,8 @@ data class Employee(
     val email: String,
     val role: String,
     val department: String,
-    val shiftName: String = "Day Shift (09:00 - 18:00)",
-    val shiftStart: String = "09:00",
+    val shiftName: String = "Natton Shift (09:30 AM - 06:00 PM)",
+    val shiftStart: String = "09:30",
     val shiftEnd: String = "18:00",
     val workLocation: String = "Office (HQ)",
     val phone: String = "+1 (555) 019-2834",
@@ -102,7 +102,7 @@ data class OfficeStayResult(
 fun calculateStayDuration(
     inTime: String?,
     outTime: String?,
-    shiftStart: String = "09:00",
+    shiftStart: String = "09:30",
     breakMinutes: Int = 0
 ): OfficeStayResult {
     if (inTime.isNullOrEmpty() || outTime.isNullOrEmpty()) {
@@ -134,14 +134,14 @@ fun calculateStayDuration(
     val netM = (netSec % 3600) / 60
 
     val shiftStartSec = timeToSeconds(shiftStart)
-    val lateMinutes = if (inSec > (shiftStartSec + 900)) ((inSec - shiftStartSec) / 60).toInt() else 0
+    val lateMinutes = if (inSec > (shiftStartSec + 600)) ((inSec - shiftStartSec) / 60).toInt() else 0
     val isLate = lateMinutes > 0
 
     val overtimeHours = if (netHours > 8.0) ((netHours - 8.0) * 10).toLong() / 10.0 else 0.0
 
     val complianceText = when {
-        netHours >= 8.0 && overtimeHours > 0 -> "Met 8h quota (+${overtimeHours}h OT)"
-        netHours >= 8.0 -> "Met 8.0h Standard Shift Quota"
+        netHours >= 8.0 && overtimeHours > 0 -> "Met 9:30-6:00 Shift (+${overtimeHours}h OT)"
+        netHours >= 8.0 -> "Met Natton 9:30-6:00 Shift Standard"
         netHours in 4.0..7.9 -> "Half Day / Partial Shift (${8.0 - netHours}h shortfall)"
         else -> "Under minimum shift duration"
     }
@@ -167,4 +167,31 @@ private fun timeToSeconds(timeStr: String): Long {
     val s = parts.getOrNull(2)?.toLongOrNull() ?: 0L
     return h * 3600 + m * 60 + s
 }
+
+enum class EventSeverity(val label: String, val colorHex: Long) {
+    INFO("Info", 0xFF3B82F6),
+    SUCCESS("Success", 0xFF10B981),
+    WARNING("Warning", 0xFFF59E0B),
+    CRITICAL("Critical", 0xFFEF4444)
+}
+
+enum class EventCategory(val label: String) {
+    ATTENDANCE_AUTO("Auto Punch & Stay"),
+    COMPANY_ANNOUNCEMENT("Company Event"),
+    HOLIDAY_NOTICE("Holiday Trigger"),
+    ADMIN_AUDIT("Super Admin Audit"),
+    SYSTEM_ALERT("System Alert")
+}
+
+data class SystemEvent(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val description: String,
+    val category: EventCategory,
+    val severity: EventSeverity = EventSeverity.INFO,
+    val timestamp: String,
+    val targetDepartment: String = "All Departments",
+    val author: String = "Super Admin System"
+)
+
 

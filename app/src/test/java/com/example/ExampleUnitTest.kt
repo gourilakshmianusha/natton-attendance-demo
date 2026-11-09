@@ -16,36 +16,38 @@ class ExampleUnitTest {
     private val sampleEmployee = Employee(
         id = "EMP-1001",
         name = "Sarah Jenkins",
-        email = "sarah.jenkins@attendflow.com",
+        email = "sarah.jenkins@natton.com",
         role = "Principal Android Engineer",
         department = "Engineering",
-        shiftName = "Day Shift (09:00 - 18:00)",
-        shiftStart = "09:00",
+        shiftName = "Day Shift (09:30 - 18:00)",
+        shiftStart = "09:30",
         shiftEnd = "18:00"
     )
 
     @Test
-    fun testOfficeStayDurationCalculation() {
+    fun testNattonOfficeStayDurationCalculation() {
+        // Office hours: 09:30 to 18:00 (8h 30m gross stay, 45m break => 7h 45m net)
         val result = calculateStayDuration(
-            inTime = "09:00:00",
-            outTime = "17:45:00",
-            shiftStart = "09:00",
-            breakMinutes = 45
+            inTime = "09:30:00",
+            outTime = "18:00:00",
+            shiftStart = "09:30",
+            breakMinutes = 30
         )
 
-        assertEquals("8 hrs 45 mins", result.grossFormatted)
+        assertEquals("8 hrs 30 mins", result.grossFormatted)
         assertEquals(8.0, result.netHours, 0.05)
         assertEquals("8 hrs 0 mins", result.netFormatted)
         assertFalse(result.isLate)
-        assertEquals("Met 8.0h Standard Shift Quota", result.complianceText)
+        assertEquals("Met Natton 9:30-6:00 Shift Standard", result.complianceText)
     }
 
     @Test
     fun testOvertimeAndLateCalculation() {
+        // Arrival past 09:40 for 09:30 shift is considered late
         val result = calculateStayDuration(
-            inTime = "09:30:00",
-            outTime = "19:00:00",
-            shiftStart = "09:00",
+            inTime = "09:45:00",
+            outTime = "19:15:00",
+            shiftStart = "09:30",
             breakMinutes = 30
         )
 
@@ -63,7 +65,7 @@ class ExampleUnitTest {
                 employeeId = "EMP-1001",
                 employeeName = "Sarah Jenkins",
                 date = "2026-11-02",
-                inTime = "08:55:00",
+                inTime = "09:25:00",
                 outTime = "18:15:00",
                 status = AttendanceStatus.PRESENT,
                 workHours = 8.5,
@@ -74,7 +76,7 @@ class ExampleUnitTest {
                 employeeId = "EMP-1001",
                 employeeName = "Sarah Jenkins",
                 date = "2026-11-03",
-                inTime = "09:25:00",
+                inTime = "09:48:00",
                 outTime = "18:30:00",
                 status = AttendanceStatus.LATE,
                 workHours = 8.2,
@@ -90,13 +92,13 @@ class ExampleUnitTest {
             lateDays = 1,
             halfDays = 0,
             absentDays = 0,
-            holidayDays = 0,
+            holidayDays = 4, // Includes Sunday weekly holidays
             leaveDays = 0,
             attendancePercentage = 9.1f,
             punctualityPercentage = 50.0f,
             totalWorkHours = 16.7,
             totalOvertimeHours = 0.7,
-            averageInTime = "09:10 AM",
+            averageInTime = "09:36 AM",
             averageOutTime = "06:22 PM",
             dailyRecords = dailyRecords
         )
@@ -105,6 +107,7 @@ class ExampleUnitTest {
         assertEquals(1, report.presentDays)
         assertEquals(1, report.lateDays)
         assertEquals(16.7, report.totalWorkHours, 0.01)
+        assertEquals(4, report.holidayDays)
     }
 
     @Test
@@ -112,8 +115,8 @@ class ExampleUnitTest {
         val punchReq = PunchApiRequest(
             employeeId = "EMP-1001",
             punchType = "IN",
-            location = "Office (HQ - Fl 4)",
-            notes = "Morning standup arrival"
+            location = "Natton HQ - Floor 4",
+            notes = "Morning office arrival"
         )
         assertEquals("EMP-1001", punchReq.employeeId)
         assertEquals("IN", punchReq.punchType)

@@ -6,8 +6,11 @@ import androidx.room.PrimaryKey
 import com.example.data.model.AttendanceRecord
 import com.example.data.model.AttendanceStatus
 import com.example.data.model.Employee
+import com.example.data.model.EventCategory
+import com.example.data.model.EventSeverity
 import com.example.data.model.Holiday
 import com.example.data.model.LeaveRequest
+import com.example.data.model.SystemEvent
 
 @Entity(tableName = "employees")
 data class EmployeeEntity(
@@ -182,3 +185,40 @@ data class LeaveRequestEntity(
         )
     }
 }
+
+@Entity(tableName = "system_events")
+data class SystemEventEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val description: String,
+    val category: String,
+    val severity: String,
+    val timestamp: String,
+    val targetDepartment: String = "All Departments",
+    val author: String = "Super Admin"
+) {
+    fun toDomain(): SystemEvent = SystemEvent(
+        id = id,
+        title = title,
+        description = description,
+        category = try { EventCategory.valueOf(category) } catch (e: Exception) { EventCategory.SYSTEM_ALERT },
+        severity = try { EventSeverity.valueOf(severity) } catch (e: Exception) { EventSeverity.INFO },
+        timestamp = timestamp,
+        targetDepartment = targetDepartment,
+        author = author
+    )
+
+    companion object {
+        fun fromDomain(event: SystemEvent): SystemEventEntity = SystemEventEntity(
+            id = event.id,
+            title = event.title,
+            description = event.description,
+            category = event.category.name,
+            severity = event.severity.name,
+            timestamp = event.timestamp,
+            targetDepartment = event.targetDepartment,
+            author = event.author
+        )
+    }
+}
+

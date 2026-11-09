@@ -124,11 +124,16 @@ fun EmployeeReportScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Attendance & Hours Performance Report",
+                        text = "Natton Technology - Attendance & Hours Report",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Office Shift: 09:30 AM – 06:00 PM • Sunday: Weekly Holiday",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),

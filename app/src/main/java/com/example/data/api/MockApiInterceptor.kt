@@ -302,7 +302,7 @@ class MockApiInterceptor(private val context: Context) : Interceptor {
             .message("OK")
             .body(responseJson.toString().toResponseBody(jsonMediaType))
             .addHeader("Content-Type", "application/json; charset=utf-8")
-            .addHeader("X-AttendFlow-Version", "1.0.0")
+            .addHeader("X-NattonTech-Version", "1.0.0")
             .build()
     }
 }

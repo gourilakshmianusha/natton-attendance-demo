@@ -50,7 +50,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun AttendFlowTheme(
+fun NattonTechTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false, // Keep consistent brand theme
     content: @Composable () -> Unit,
@@ -70,3 +70,10 @@ fun AttendFlowTheme(
         content = content
     )
 }
+
+@Composable
+fun AttendFlowTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) = NattonTechTheme(darkTheme, dynamicColor, content)

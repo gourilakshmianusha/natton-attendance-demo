@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "AttendFlow"
+rootProject.name = "Natton Technology"
 
 include(":app")

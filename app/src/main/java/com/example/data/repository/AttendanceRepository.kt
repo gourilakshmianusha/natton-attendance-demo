@@ -6,6 +6,7 @@ import com.example.data.local.AttendanceRecordEntity
 import com.example.data.local.EmployeeEntity
 import com.example.data.local.HolidayEntity
 import com.example.data.local.LeaveRequestEntity
+import com.example.data.local.SystemEventEntity
 import com.example.data.model.AttendanceRecord
 import com.example.data.model.AttendanceStatus
 import com.example.data.model.Employee
@@ -13,6 +14,7 @@ import com.example.data.model.EmployeeAttendanceReport
 import com.example.data.model.Holiday
 import com.example.data.model.LeaveRequest
 import com.example.data.model.PunchType
+import com.example.data.model.SystemEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -30,9 +32,10 @@ class AttendanceRepository(private val context: Context) {
     private val attendanceDao = db.attendanceDao()
     private val holidayDao = db.holidayDao()
     private val leaveDao = db.leaveDao()
+    private val eventDao = db.eventDao()
 
     suspend fun initializeData() {
-        SampleDataSeeder.seedIfNeeded(db)
+        SampleDataSeeder.seedIfNeeded(context, db)
     }
 
     val employees: Flow<List<Employee>> = employeeDao.getAllEmployees().map { list ->
@@ -50,6 +53,22 @@ class AttendanceRepository(private val context: Context) {
     val leaves: Flow<List<LeaveRequest>> = leaveDao.getAllLeaves().map { list ->
         list.map { it.toDomain() }
     }.flowOn(Dispatchers.IO)
+
+    val systemEvents: Flow<List<SystemEvent>> = eventDao.getAllEvents().map { list ->
+        list.map { it.toDomain() }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun addSystemEvent(event: SystemEvent) = withContext(Dispatchers.IO) {
+        eventDao.insertEvent(SystemEventEntity.fromDomain(event))
+    }
+
+    suspend fun deleteSystemEvent(id: String) = withContext(Dispatchers.IO) {
+        eventDao.deleteEvent(id)
+    }
+
+    suspend fun clearAllSystemEvents() = withContext(Dispatchers.IO) {
+        eventDao.clearAllEvents()
+    }
 
     fun getAttendanceForDate(date: String): Flow<List<AttendanceRecord>> =
         attendanceDao.getAttendanceForDate(date).map { list ->
@@ -87,10 +106,10 @@ class AttendanceRepository(private val context: Context) {
             PunchType.IN -> {
                 inTime = timeNow
                 outTime = existing?.outTime
-                // Determine if late
+                // Natton Technology Shift 09:30 AM: mark late if after 09:40 AM
                 val shiftStart = emp.shiftStart
                 val hourMin = timeNow.substring(0, 5)
-                status = if (hourMin > shiftStart && hourMin > "09:15") AttendanceStatus.LATE else AttendanceStatus.PRESENT
+                status = if (hourMin > shiftStart && hourMin > "09:40") AttendanceStatus.LATE else AttendanceStatus.PRESENT
             }
             PunchType.OUT -> {
                 inTime = existing?.inTime ?: "09:00:00"
@@ -217,7 +236,8 @@ class AttendanceRepository(private val context: Context) {
 
     fun generateCsvReport(report: EmployeeAttendanceReport): String {
         val sb = StringBuilder()
-        sb.appendLine("ATTENDFLOW EMPLOYEE ATTENDANCE REPORT")
+        sb.appendLine("NATTON TECHNOLOGY - EMPLOYEE ATTENDANCE & OFFICE STAY REPORT")
+        sb.appendLine("Official Work Timings: 09:30 AM - 06:00 PM | Sunday: Weekly Holiday")
         sb.appendLine("Employee Name,${report.employee.name}")
         sb.appendLine("Employee ID,${report.employee.id}")
         sb.appendLine("Department,${report.employee.department}")
@@ -273,6 +293,18 @@ class AttendanceRepository(private val context: Context) {
 
     suspend fun saveManualAttendance(record: AttendanceRecord) = withContext(Dispatchers.IO) {
         attendanceDao.insertAttendance(AttendanceRecordEntity.fromDomain(record))
+    }
+
+    suspend fun addSystemEvent(event: SystemEvent) = withContext(Dispatchers.IO) {
+        eventDao.insertEvent(SystemEventEntity.fromDomain(event))
+    }
+
+    suspend fun deleteSystemEvent(eventId: String) = withContext(Dispatchers.IO) {
+        eventDao.deleteEvent(eventId)
+    }
+
+    suspend fun clearAllSystemEvents() = withContext(Dispatchers.IO) {
+        eventDao.clearAllEvents()
     }
 
     private fun timeStrToSeconds(timeStr: String): Long? {

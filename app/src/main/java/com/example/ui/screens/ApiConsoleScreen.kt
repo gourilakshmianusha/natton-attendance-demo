@@ -106,7 +106,7 @@ fun ApiConsoleScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "AttendFlow REST API Console",
+                                text = "Natton Technology REST API Console",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )

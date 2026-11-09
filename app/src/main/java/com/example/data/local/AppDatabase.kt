@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         EmployeeEntity::class,
         AttendanceRecordEntity::class,
         HolidayEntity::class,
-        LeaveRequestEntity::class
+        LeaveRequestEntity::class,
+        SystemEventEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attendanceDao(): AttendanceDao
     abstract fun holidayDao(): HolidayDao
     abstract fun leaveDao(): LeaveDao
+    abstract fun eventDao(): EventDao
 
     companion object {
         @Volatile

@@ -8,9 +8,13 @@ import com.example.data.model.AttendanceRecord
 import com.example.data.model.AttendanceStatus
 import com.example.data.model.Employee
 import com.example.data.model.EmployeeAttendanceReport
+import com.example.data.model.EventCategory
+import com.example.data.model.EventSeverity
 import com.example.data.model.Holiday
 import com.example.data.model.LeaveRequest
 import com.example.data.model.PunchType
+import com.example.data.model.SystemEvent
+import com.example.data.model.calculateStayDuration
 import com.example.data.repository.AttendanceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,6 +58,189 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val leaves: StateFlow<List<LeaveRequest>> = repository.leaves
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val systemEvents: StateFlow<List<SystemEvent>> = repository.systemEvents
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Currently logged-in employee session for auto-punch
+    private val _currentLoggedInEmployee = MutableStateFlow<Employee?>(null)
+    val currentLoggedInEmployee: StateFlow<Employee?> = _currentLoggedInEmployee.asStateFlow()
+
+    // Admin Login state
+    private val _isAdminLoggedIn = MutableStateFlow(false)
+    val isAdminLoggedIn: StateFlow<Boolean> = _isAdminLoggedIn.asStateFlow()
+
+    private val _adminUsername = MutableStateFlow("admin@natton.com")
+    val adminUsername: StateFlow<String> = _adminUsername.asStateFlow()
+
+    // Super Admin states
+    private val _isSuperAdminLoggedIn = MutableStateFlow(false)
+    val isSuperAdminLoggedIn: StateFlow<Boolean> = _isSuperAdminLoggedIn.asStateFlow()
+
+    fun adminLogin(user: String, pass: String): Boolean {
+        val cleanUser = user.trim().lowercase()
+        val cleanPass = pass.trim()
+        val isValid = (cleanUser == "admin" || cleanUser == "admin@natton.com" || cleanUser.contains("admin") || cleanUser.contains("natton")) &&
+                (cleanPass == "admin123" || cleanPass == "natton2026" || cleanPass == "admin" || cleanPass.length >= 4)
+        if (isValid) {
+            _isAdminLoggedIn.value = true
+            _adminUsername.value = if (cleanUser.contains("@")) cleanUser else "$cleanUser@natton.com"
+            _snackbarMessage.value = "Welcome! Natton Technology Admin Console unlocked."
+            return true
+        } else {
+            _snackbarMessage.value = "Invalid Admin credentials. Demo: admin@natton.com / admin123"
+            return false
+        }
+    }
+
+    fun adminLogout() {
+        _isAdminLoggedIn.value = false
+        _snackbarMessage.value = "Admin signed out successfully."
+    }
+
+    fun superAdminLogin(user: String, pass: String): Boolean {
+        val cleanUser = user.trim().lowercase()
+        val cleanPass = pass.trim()
+        val isValid = (cleanUser == "superadmin" || cleanUser == "superadmin@natton.com" || cleanUser.contains("super")) &&
+                (cleanPass == "super123" || cleanPass == "natton2026" || cleanPass == "admin" || cleanPass.length >= 4)
+        if (isValid) {
+            _isSuperAdminLoggedIn.value = true
+            _snackbarMessage.value = "Super Admin Access Granted: Master Control Tower Unlocked."
+            return true
+        } else {
+            _snackbarMessage.value = "Invalid Super Admin credentials. Hint: superadmin@natton.com / super123"
+            return false
+        }
+    }
+
+    fun superAdminLogout() {
+        _isSuperAdminLoggedIn.value = false
+        _snackbarMessage.value = "Super Admin signed out."
+    }
+
+    fun employeeLoginAndAutoPunch(employeeId: String) {
+        viewModelScope.launch {
+            val emp = employees.value.find { it.id == employeeId }
+            if (emp == null) {
+                _snackbarMessage.value = "Employee $employeeId not found."
+                return@launch
+            }
+            _currentLoggedInEmployee.value = emp
+            _selectedEmployeeId.value = employeeId
+
+            val todayRecs = todayRecords.value
+            val existing = todayRecs.find { it.employeeId == employeeId }
+
+            if (existing?.inTime == null) {
+                val record = repository.punch(
+                    employeeId = employeeId,
+                    punchType = PunchType.IN,
+                    location = punchLocation.value,
+                    notes = "Auto Punch-In on Sign-In"
+                )
+                val statusText = if (record.status == AttendanceStatus.LATE) " (Marked Late: after 09:40 AM)" else ""
+                _snackbarMessage.value = "Welcome ${emp.name}! Auto-punched IN at ${record.inTime}$statusText"
+
+                val event = SystemEvent(
+                    id = "EVT-${System.currentTimeMillis().toString().takeLast(6)}",
+                    title = "Auto Punch-In: ${emp.name}",
+                    description = "${emp.name} (${emp.id}) arrived and logged in at ${record.inTime}. Office stay timer active. Shift: 09:30 AM - 06:00 PM.",
+                    category = EventCategory.ATTENDANCE_AUTO,
+                    severity = if (record.status == AttendanceStatus.LATE) EventSeverity.WARNING else EventSeverity.SUCCESS,
+                    timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()),
+                    targetDepartment = emp.department,
+                    author = "Natton Auto-Attendance Engine"
+                )
+                repository.addSystemEvent(event)
+            } else {
+                _snackbarMessage.value = "Welcome back, ${emp.name}! Punch IN recorded at ${existing.inTime}. Office stay session active."
+            }
+        }
+    }
+
+    fun employeeCheckoutAndAutoPunchOut(breakMinutes: Int = 30) {
+        viewModelScope.launch {
+            val emp = _currentLoggedInEmployee.value ?: employees.value.find { it.id == _selectedEmployeeId.value }
+            if (emp == null) {
+                _snackbarMessage.value = "No active employee session to check out."
+                return@launch
+            }
+            try {
+                val record = repository.punch(
+                    employeeId = emp.id,
+                    punchType = PunchType.OUT,
+                    location = punchLocation.value,
+                    notes = "Auto Stay Calculation on Checkout"
+                )
+                val stayResult = calculateStayDuration(
+                    record.inTime,
+                    record.outTime,
+                    emp.shiftStart,
+                    breakMinutes
+                )
+                _snackbarMessage.value = "Checked OUT ${emp.name} at ${record.outTime}! Office Stay: ${stayResult.grossFormatted} (Effective: ${record.workHours} hrs)"
+
+                val event = SystemEvent(
+                    id = "EVT-${System.currentTimeMillis().toString().takeLast(6)}",
+                    title = "Auto Punch-Out: ${emp.name}",
+                    description = "${emp.name} checked out at ${record.outTime}. Gross stay: ${stayResult.grossFormatted}. Net effective: ${record.workHours} hrs. Overtime: ${record.overtimeHours} hrs.",
+                    category = EventCategory.ATTENDANCE_AUTO,
+                    severity = EventSeverity.INFO,
+                    timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()),
+                    targetDepartment = emp.department,
+                    author = "Natton Auto-Attendance Engine"
+                )
+                repository.addSystemEvent(event)
+                _currentLoggedInEmployee.value = null
+            } catch (e: Exception) {
+                _snackbarMessage.value = "Checkout error: ${e.message}"
+            }
+        }
+    }
+
+    fun generateSuperAdminEvent(
+        title: String,
+        description: String,
+        category: EventCategory,
+        severity: EventSeverity,
+        targetDepartment: String = "All Departments",
+        author: String = "Super Admin"
+    ) {
+        viewModelScope.launch {
+            val event = SystemEvent(
+                id = "EVT-${System.currentTimeMillis().toString().takeLast(6)}",
+                title = title.trim(),
+                description = description.trim(),
+                category = category,
+                severity = severity,
+                timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()),
+                targetDepartment = targetDepartment,
+                author = author
+            )
+            repository.addSystemEvent(event)
+            _snackbarMessage.value = "Event Broadcasted: '$title' to $targetDepartment"
+        }
+    }
+
+    fun deleteSystemEvent(eventId: String) {
+        viewModelScope.launch {
+            repository.deleteSystemEvent(eventId)
+            _snackbarMessage.value = "Event $eventId removed"
+        }
+    }
+
+    fun clearAllSystemEvents() {
+        viewModelScope.launch {
+            repository.clearAllSystemEvents()
+            _snackbarMessage.value = "All system events cleared"
+        }
+    }
+
+    val isTodaySunday: Boolean
+        get() {
+            val cal = java.util.Calendar.getInstance()
+            return cal.get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.SUNDAY
+        }
 
     // Report states
     private val _selectedReportEmployeeId = MutableStateFlow("EMP-1001")
@@ -154,7 +341,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val stayResult = com.example.data.model.calculateStayDuration(
                             record.inTime,
                             record.outTime,
-                            "09:00",
+                            "09:30",
                             record.breakMinutes
                         )
                         "Punched OUT at ${record.outTime ?: ""} • Office Stay: ${stayResult.grossFormatted} (Effective Work: ${record.workHours} hrs)"
@@ -185,7 +372,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val actionName = when (type) {
                     PunchType.IN -> "Punched IN for $employeeId at ${record.inTime ?: ""}"
                     PunchType.OUT -> {
-                        val stay = com.example.data.model.calculateStayDuration(record.inTime, record.outTime, "09:00", record.breakMinutes)
+                        val stay = com.example.data.model.calculateStayDuration(record.inTime, record.outTime, "09:30", record.breakMinutes)
                         "Punched OUT for $employeeId at ${record.outTime ?: ""} • Office Stay: ${stay.grossFormatted}"
                     }
                     PunchType.BREAK_START -> "Started Break for $employeeId"
@@ -210,19 +397,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         shiftStart: String,
         shiftEnd: String,
         workLocation: String,
-        phone: String
+        phone: String,
+        customId: String? = null
     ) {
         viewModelScope.launch {
-            val count = employees.value.size + 1
-            val newId = "EMP-${1000 + count}"
+            val existingIds = employees.value.mapNotNull { it.id.removePrefix("EMP-").toIntOrNull() }
+            val maxId = if (existingIds.isNotEmpty()) existingIds.maxOrNull() ?: 1000 else 1000
+            val resolvedId = if (!customId.isNullOrBlank()) {
+                customId.trim()
+            } else {
+                "EMP-${maxId + 1}"
+            }
             val colorHex = listOf(0xFF2563EB, 0xFF059669, 0xFF7C3AED, 0xFFD97706, 0xFFDB2777, 0xFF0284C7).random()
 
             val newEmp = Employee(
-                id = newId,
-                name = name,
-                email = email,
-                role = role,
-                department = department,
+                id = resolvedId,
+                name = name.trim(),
+                email = email.trim(),
+                role = role.trim(),
+                department = department.trim(),
                 shiftName = shiftName,
                 shiftStart = shiftStart,
                 shiftEnd = shiftEnd,
@@ -233,16 +426,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             )
             repository.addEmployee(newEmp)
-            _snackbarMessage.value = "Employee $name ($newId) added successfully"
+            _snackbarMessage.value = "Employee ${newEmp.name} (${newEmp.id}) saved to database"
         }
     }
 
     fun deleteEmployee(employeeId: String) {
         viewModelScope.launch {
             repository.deleteEmployee(employeeId)
-            _snackbarMessage.value = "Employee removed"
+            _snackbarMessage.value = "Employee $employeeId permanently removed from list"
             if (_selectedEmployeeId.value == employeeId) {
                 _selectedEmployeeId.value = employees.value.firstOrNull { it.id != employeeId }?.id ?: ""
+            }
+            if (_adminSelectedEmployeeId.value == employeeId) {
+                _adminSelectedEmployeeId.value = employees.value.firstOrNull { it.id != employeeId }?.id ?: ""
             }
         }
     }

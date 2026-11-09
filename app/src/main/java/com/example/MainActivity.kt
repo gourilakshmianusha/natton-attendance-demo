@@ -10,14 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.MainScreen
 import com.example.ui.MainViewModel
-import com.example.ui.theme.AttendFlowTheme
+import com.example.ui.theme.NattonTechTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AttendFlowTheme {
+            NattonTechTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val mainViewModel: MainViewModel = viewModel()
                     MainScreen(viewModel = mainViewModel)

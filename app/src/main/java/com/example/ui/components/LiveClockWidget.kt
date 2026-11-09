@@ -63,6 +63,10 @@ fun LiveClockWidget(
     var currentDate by remember {
         mutableStateOf(SimpleDateFormat("EEEE, MMMM dd, yyyy", Locale.US).format(Date()))
     }
+    val isSunday = remember {
+        val cal = java.util.Calendar.getInstance()
+        cal.get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.SUNDAY
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -114,20 +118,40 @@ fun LiveClockWidget(
                         )
                     }
 
-                    // Status Pill
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(
-                                when {
-                                    isCheckedIn && !isCheckedOut -> StatusPresent.copy(alpha = 0.2f)
-                                    isCheckedOut -> Color(0xFF3B82F6).copy(alpha = 0.2f)
-                                    else -> Color.Gray.copy(alpha = 0.2f)
-                                }
-                            )
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isSunday) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color(0xFF3B82F6).copy(alpha = 0.25f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Sunday Holiday",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF60A5FA),
+                                        fontSize = 10.sp
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+
+                        // Status Pill
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    when {
+                                        isCheckedIn && !isCheckedOut -> StatusPresent.copy(alpha = 0.2f)
+                                        isCheckedOut -> Color(0xFF3B82F6).copy(alpha = 0.2f)
+                                        else -> Color.Gray.copy(alpha = 0.2f)
+                                    }
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                         Box(
                             modifier = Modifier
                                 .size(7.dp)
@@ -158,8 +182,9 @@ fun LiveClockWidget(
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
                 // Time Display
                 AnimatedContent(

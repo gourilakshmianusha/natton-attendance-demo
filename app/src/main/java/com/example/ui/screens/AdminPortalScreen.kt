@@ -28,11 +28,13 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Logout
@@ -54,6 +56,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -77,6 +80,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.AttendanceRecord
 import com.example.data.model.AttendanceStatus
 import com.example.data.model.Employee
+import com.example.data.model.Holiday
 import com.example.data.model.OfficeStayResult
 import com.example.data.model.PunchType
 import com.example.data.model.calculateStayDuration
@@ -84,6 +88,7 @@ import com.example.ui.MainViewModel
 import com.example.ui.components.StatusBadge
 import com.example.ui.theme.BrandPrimary
 import com.example.ui.theme.BrandSecondary
+import com.example.ui.theme.StatusHoliday
 import com.example.ui.theme.StatusLate
 import com.example.ui.theme.StatusPresent
 import kotlinx.coroutines.delay
@@ -101,6 +106,7 @@ fun AdminPortalScreen(
     val todayRecords by viewModel.todayRecords.collectAsState()
     val adminSelectedId by viewModel.adminSelectedEmployeeId.collectAsState()
     val isPunching by viewModel.isPunching.collectAsState()
+    val holidays by viewModel.holidays.collectAsState()
 
     var activeAdminTab by remember { mutableStateOf(0) }
 
@@ -141,7 +147,7 @@ fun AdminPortalScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(42.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(BrandPrimary),
                                 contentAlignment = Alignment.Center
@@ -151,37 +157,45 @@ fun AdminPortalScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Admin Attendance & Staff Control",
+                                    text = "Natton Technology Admin Desk",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Register Employees • Punch In/Out • Automatic Stay Calculator",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "Shift: 09:30 AM – 06:00 PM • Sunday: Weekly Holiday",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(StatusPresent.copy(alpha = 0.15f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (viewModel.isTodaySunday) {
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(StatusPresent)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "System Online",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = StatusPresent
-                                )
+                                        .clip(RoundedCornerShape(50))
+                                        .background(Color(0xFF3B82F6).copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Sunday Holiday",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = Color(0xFF3B82F6),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+
+                            OutlinedButton(
+                                onClick = { viewModel.adminLogout() },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(34.dp).testTag("admin_logout_button")
+                            ) {
+                                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Log Out", fontSize = 11.sp)
                             }
                         }
                     }
@@ -237,11 +251,18 @@ fun AdminPortalScreen(
         // TAB 0: REGISTER EMPLOYEE INFORMATION
         if (activeAdminTab == 0) {
             item {
+                ActualCalendarHolidaysBanner(
+                    holidays = holidays,
+                    isTodaySunday = viewModel.isTodaySunday
+                )
+            }
+
+            item {
                 EmployeeRegistrationCard(
                     employeesCount = employees.size,
-                    onRegister = { name, email, role, dept, shiftStart, shiftEnd, location, phone ->
+                    onRegister = { name, email, role, dept, shiftStart, shiftEnd, location, phone, customId ->
                         val shiftName = "Day Shift ($shiftStart - $shiftEnd)"
-                        viewModel.addEmployee(name, email, role, dept, shiftName, shiftStart, shiftEnd, location, phone)
+                        viewModel.addEmployee(name, email, role, dept, shiftName, shiftStart, shiftEnd, location, phone, customId)
                         activeAdminTab = 1 // Automatically navigate to Punch Desk to test punch!
                     }
                 )
@@ -321,18 +342,19 @@ fun AdminPortalScreen(
 @Composable
 private fun EmployeeRegistrationCard(
     employeesCount: Int,
-    onRegister: (name: String, email: String, role: String, dept: String, shiftStart: String, shiftEnd: String, location: String, phone: String) -> Unit
+    onRegister: (name: String, email: String, role: String, dept: String, shiftStart: String, shiftEnd: String, location: String, phone: String, customId: String?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var role by remember { mutableStateOf("") }
     var department by remember { mutableStateOf("Engineering") }
-    var shiftStart by remember { mutableStateOf("09:00") }
+    var shiftStart by remember { mutableStateOf("09:30") }
     var shiftEnd by remember { mutableStateOf("18:00") }
-    var location by remember { mutableStateOf("Office (HQ - Fl 4)") }
+    var location by remember { mutableStateOf("Natton HQ - Floor 4") }
     var phone by remember { mutableStateOf("+1 (555) 018-9922") }
+    var customId by remember { mutableStateOf("") }
 
-    val nextId = "EMP-${1001 + employeesCount}"
+    val nextId = if (customId.isNotBlank()) customId.trim() else "EMP-${1001 + employeesCount}"
     val departments = listOf("Engineering", "Product", "Design", "Human Resources", "Finance", "Operations", "Quality Assurance", "Sales")
     var showDeptMenu by remember { mutableStateOf(false) }
 
@@ -382,6 +404,56 @@ private fun EmployeeRegistrationCard(
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Notice Banner with Actual Calendar Holidays & Shift Policies
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(12.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                tint = BrandPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Actual Calendar Holidays & Shift Policy",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color(0xFF3B82F6).copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Sunday: Weekly Off",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF3B82F6)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Standard Natton Office Shift: 09:30 AM to 06:00 PM. Registered employees receive full paid attendance for all official calendar holidays (Nov 11 Veterans Day, Nov 26 Thanksgiving, Dec 25 Christmas, Jan 01 New Year's Day, and all Sundays).",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             // Name & Email
             Row(
@@ -498,12 +570,39 @@ private fun EmployeeRegistrationCard(
                 )
             }
 
+            // Optional Custom Employee ID & Contact
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = customId,
+                    onValueChange = { customId = it },
+                    label = { Text("Employee ID (Optional)") },
+                    placeholder = { Text("Auto: $nextId") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("reg_custom_id_input"),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Contact Phone") },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
 
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        onRegister(name, email, role, department, shiftStart, shiftEnd, location, phone)
+                        onRegister(name, email, role, department, shiftStart, shiftEnd, location, phone, customId.ifBlank { null })
                     }
                 },
                 enabled = name.isNotBlank() && role.isNotBlank(),
@@ -542,7 +641,7 @@ private fun PunchAndStayCalculatorCard(
 
     // Auto-calculate office stay duration
     val stayResult = remember(inTime, outTime, record?.breakMinutes) {
-        calculateStayDuration(inTime, outTime, selectedEmployee?.shiftStart ?: "09:00", record?.breakMinutes ?: 0)
+        calculateStayDuration(inTime, outTime, selectedEmployee?.shiftStart ?: "09:30", record?.breakMinutes ?: 0)
     }
 
     Card(
@@ -846,7 +945,7 @@ private fun OfficeStaySimulatorCard(viewModel: MainViewModel) {
                     value = inTime,
                     onValueChange = { viewModel.customInTime.value = it },
                     label = { Text("Test In Time") },
-                    placeholder = { Text("09:00:00") },
+                    placeholder = { Text("09:30:00") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
                     singleLine = true
@@ -1084,3 +1183,189 @@ private fun RegisteredEmployeeRow(
         }
     }
 }
+
+// ----------------- COMPONENT 5: ACTUAL CALENDAR HOLIDAYS & OFFICE SCHEDULE BANNER -----------------
+@Composable
+fun ActualCalendarHolidaysBanner(
+    holidays: List<Holiday>,
+    isTodaySunday: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF3B82F6).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = Color(0xFF3B82F6),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Actual Calendar Holidays & Schedule",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Office Hours: 09:30 AM - 06:00 PM • Sunday Off",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (isTodaySunday) Color(0xFF3B82F6).copy(alpha = 0.2f)
+                            else StatusPresent.copy(alpha = 0.15f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isTodaySunday) "Today: Sunday Holiday" else "Live Calendar Active",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isTodaySunday) Color(0xFF3B82F6) else StatusPresent
+                    )
+                }
+            }
+
+            // Official message
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = BrandPrimary,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .padding(top = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Official Natton Calendar Policy: Office operating hours are strictly 09:30 AM to 06:00 PM (Monday–Saturday). All Sundays are official paid weekly off. Registered employees receive full paid leave on all declared public, national, and festival holidays.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Text(
+                text = "Upcoming Actual Calendar Holidays",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Horizontal Scrollable Actual Holidays Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val sampleHolidays = holidays.ifEmpty {
+                    listOf(
+                        Holiday(name = "Veterans Day", date = "2026-11-11", type = "National Holiday", isMandatory = true),
+                        Holiday(name = "Sunday Weekly Off", date = "2026-11-15", type = "Sunday Weekly Holiday", isMandatory = true),
+                        Holiday(name = "Sunday Weekly Off", date = "2026-11-22", type = "Sunday Weekly Holiday", isMandatory = true),
+                        Holiday(name = "Thanksgiving Day", date = "2026-11-26", type = "Public Holiday", isMandatory = true),
+                        Holiday(name = "Day After Thanksgiving", date = "2026-11-27", type = "Company Holiday", isMandatory = true),
+                        Holiday(name = "Sunday Weekly Off", date = "2026-11-29", type = "Sunday Weekly Holiday", isMandatory = true),
+                        Holiday(name = "Sunday Weekly Off", date = "2026-12-06", type = "Sunday Weekly Holiday", isMandatory = true),
+                        Holiday(name = "Sunday Weekly Off", date = "2026-12-13", type = "Sunday Weekly Holiday", isMandatory = true),
+                        Holiday(name = "Christmas Day", date = "2026-12-25", type = "Public Holiday", isMandatory = true),
+                        Holiday(name = "New Year's Day 2027", date = "2027-01-01", type = "Public Holiday", isMandatory = true)
+                    )
+                }
+
+                sampleHolidays.take(8).forEach { h ->
+                    ActualHolidayChip(holiday = h)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActualHolidayChip(holiday: Holiday) {
+    val isSunday = holiday.name.contains("Sunday", ignoreCase = true)
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSunday) Color(0xFF3B82F6).copy(alpha = 0.4f) else StatusHoliday.copy(alpha = 0.4f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        if (isSunday) Color(0xFF3B82F6).copy(alpha = 0.15f)
+                        else StatusHoliday.copy(alpha = 0.15f)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = holiday.date.removePrefix("2026-"),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (isSunday) Color(0xFF2563EB) else StatusHoliday
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = holiday.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (isSunday) "Official Weekly Off" else holiday.type,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
